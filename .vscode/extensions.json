@@ -1,0 +1,7 @@
+{
+	"recommendations": [
+		"golang.go", // Go
+		"streetsidesoftware.code-spell-checker", // Spell Checker
+		"mikestead.dotenv" // .env
+	]
+}

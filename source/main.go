@@ -1,177 +1,125 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
+	"log"
 	"os"
 
-	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 )
 
-type RequestPayload struct {
-	Action     string       `json:"method"`
-	Parameters LoginPayload `json:"params"`
-}
+const (
+	VERSION = "0.1.0"
+)
 
-type ResponsePayload struct {
-	ErrorCode int            `json:"error_code"`
-	Result    *LoginResponse `json:"result"`
-}
-
-type LoginPayload struct {
-	AppType      string `json:"appType"` // Kasa_Android, Tapo_Ios
-	EmailAddress string `json:"cloudUserName"`
-	Password     string `json:"cloudPassword"`
-	TerminalUUID string `json:"terminalUUID"`
-}
-
-type LoginResponse struct {
-	Identifier          string `json:"accountId"`
-	RegisteredAt        string `json:"regTime"`
-	CountryCode         string `json:"countryCode"`
-	RiskDetected        int    `json:"riskDetected"`
-	DisplayName         string `json:"nickname"`
-	EmailAddress        string `json:"email"`
-	AuthenticationToken string `json:"token"`
+type Plug struct {
+	config  PlugConfig
+	metrics *PlugMetrics
 }
 
 func main() {
-	emailAddress := ""
-	password := ""
-	fmt.Printf("Email Address: '%s'\n", emailAddress)
-	fmt.Printf("Password: '%s'\n\n", password)
+	godotenv.Load()
 
-	schema := "http"
-	ipAddress := "192.168.0.207"
-	tcpPort := 80
-	httpPath := "/app"
+	configPath := parseFlags()
+	log.Printf("Using '%s' as configuration file path", configPath)
 
-	url := fmt.Sprintf("%s://%s:%d%s", schema, ipAddress, tcpPort, httpPath)
-	fmt.Printf("Plug URL: '%s'\n", url)
-
-	cloudUrl := "https://eu-wap.tplinkcloud.com"
-	fmt.Printf("Cloud URL: '%s'\n\n", url)
-
-	authenticationTokenFilePath := "token.txt"
-	if _, err := os.Stat(authenticationTokenFilePath); os.IsNotExist(err) {
-		fmt.Printf("Authentication token file does not exist: '%s'\n", authenticationTokenFilePath)
-
-		terminalUUIDFilePath := "uuid.txt"
-		if _, err := os.Stat(terminalUUIDFilePath); os.IsNotExist(err) {
-			freshTerminalUUID := uuid.New()
-			fmt.Printf("Generated new terminal UUID: '%s'\n", freshTerminalUUID)
-
-			err := os.WriteFile(terminalUUIDFilePath, []byte(freshTerminalUUID.String()), 0644)
-			if err != nil {
-				fmt.Printf("Error writing terminal UUID to file: '%s'\n", err)
-				os.Exit(1)
-			}
-		}
-
-		rawTerminalUUID, err := os.ReadFile(terminalUUIDFilePath)
-		if err != nil {
-			fmt.Printf("Error reading terminal UUID from file: '%s'\n", err)
-			os.Exit(1)
-		}
-
-		terminalUUID := string(rawTerminalUUID)
-		fmt.Printf("Loaded existing terminal UUID: '%s'\n", terminalUUID)
-
-		loginPayload := RequestPayload{
-			Action: "login",
-			Parameters: LoginPayload{
-				AppType:      "Tapo_Ios",
-				EmailAddress: emailAddress,
-				Password:     password,
-				TerminalUUID: terminalUUID,
-			},
-		}
-
-		encodedLoginPayload, err := json.Marshal(loginPayload)
-		if err != nil {
-			fmt.Printf("Error marshalling request payload: '%s'\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Encoded payload: '%s'\n", string(encodedLoginPayload))
-
-		loginRequest, err := http.NewRequest("POST", cloudUrl, bytes.NewBuffer(encodedLoginPayload))
-		if err != nil {
-			fmt.Printf("Error creating HTTP request: '%s'\n", err)
-			os.Exit(1)
-		}
-		loginRequest.Header.Set("Accept", "application/json")
-		loginRequest.Header.Set("Content-Type", "application/json")
-		loginRequest.Header.Set("User-Agent", "Tapo Smart Plug/0.0.0 (https://viral32111.com; contact@viral32111.com)")
-		loginRequest.Header.Set("From", "contact@viral32111.com")
-		loginRequest.Body = io.NopCloser(bytes.NewReader(encodedLoginPayload))
-
-		loginResponse, err := http.DefaultClient.Do(loginRequest)
-		if err != nil {
-			fmt.Printf("Error sending HTTP request to server: '%s'\n", err)
-			os.Exit(1)
-		}
-		defer loginResponse.Body.Close()
-
-		/*
-			{
-				"error_code": 0,
-				"result": {
-					"accountId": "9156386568355",
-					"regTime": "2024-08-08 15:26:56",
-					"countryCode": "GB",
-					"riskDetected": 0,
-					"nickname": "",
-					"email": "",
-					"token": "54571945-54571945-BTgznOUvb8BBSADOqiPfPodJ"
-				}
-			}
-		*/
-
-		body, err := io.ReadAll(loginResponse.Body)
-		if err != nil {
-			fmt.Printf("Error reading HTTP response body: '%s'\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Response: '%s'\n", string(body))
-
-		var loginResponsePayload ResponsePayload
-		err = json.Unmarshal(body, &loginResponsePayload)
-		if err != nil {
-			fmt.Printf("Error parsing error response: '%s'\n", err)
-			os.Exit(1)
-		}
-
-		if loginResponsePayload.ErrorCode != 0 {
-			fmt.Printf("Error code: %d\n", loginResponsePayload.ErrorCode)
-			os.Exit(1)
-		}
-
-		fmt.Printf("Account ID: '%s'\n", loginResponsePayload.Result.Identifier)
-		fmt.Printf("Registration Time: '%s'\n", loginResponsePayload.Result.RegisteredAt)
-		fmt.Printf("Country Code: '%s'\n", loginResponsePayload.Result.CountryCode)
-		fmt.Printf("Risk Detected: '%d'\n", loginResponsePayload.Result.RiskDetected)
-		fmt.Printf("Display Name: '%s'\n", loginResponsePayload.Result.DisplayName)
-		fmt.Printf("Email Address: '%s'\n", loginResponsePayload.Result.EmailAddress)
-		fmt.Printf("Authentication Token: '%s'\n", loginResponsePayload.Result.AuthenticationToken) // 54571945-BTgznOUvb8BBSADOqiPfPodJ, 54571945-BTyUYorI14pjT1mJYPAmA9T
-
-		err = os.WriteFile(authenticationTokenFilePath, []byte(loginResponsePayload.Result.AuthenticationToken), 0600)
-		if err != nil {
-			fmt.Printf("Error writing authentication token to file: '%s'\n", err)
-			os.Exit(1)
-		}
-	} else {
-		rawAuthenticationToken, err := os.ReadFile(authenticationTokenFilePath)
-		if err != nil {
-			fmt.Printf("Error reading authentication token from file: '%s'\n", err)
-			os.Exit(1)
-		}
-
-		authenticationToken := string(rawAuthenticationToken)
-		fmt.Printf("Loaded existing authentication token: '%s'\n", authenticationToken)
+	config, err := loadConfig(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error while loading configuration file: %s\n", err)
+		os.Exit(1)
 	}
 
-	os.Exit(0)
+	metricsServer := NewMetricsServer(config)
+
+	var metricsList []*PlugMetrics
+	for _, plugConfig := range config.Plugs {
+		if !plugConfig.IsEnabled() {
+			continue
+		}
+
+		session, err := NewKLAPSession(
+			plugConfig.IPAddress,
+			plugConfig.DetermineEmail(config.Account),
+			plugConfig.DeterminePassword(config.Account),
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error communicating with plug '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
+			continue
+		}
+
+		deviceInfo, err := GetDeviceInfo(session)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting device info from plug '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
+			continue
+		}
+
+		// Extension cord
+		if deviceInfo.Model == "P110" || deviceInfo.Model == "P110M" {
+			energyUsage, err := GetEnergyUsage(session)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting energy usage from plug '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
+			}
+
+			metrics := NewPlugMetrics(plugConfig, session, deviceInfo, energyUsage)
+			metrics.register(metricsServer.registry)
+
+			metricsList = append(metricsList, metrics)
+			log.Printf("Registered metrics for '%s' (%s) @ %s", plugConfig.Name, deviceInfo.Model, deviceInfo.IPAddress)
+
+			// Initial metrics population before starting the server
+			metrics.update(deviceInfo, energyUsage)
+
+		} else if deviceInfo.Model == "P304M" {
+			childDeviceList, err := GetChildDeviceList(session)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting child device list from plug '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
+				continue
+			}
+
+			for _, childDevice := range childDeviceList.Devices {
+				childDeviceInfo, err := ControlChild_GetDeviceInfo(session, childDevice.ID)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error getting device info for child device '%s' of plug '%s' (%s): %s\n", childDevice.ID, plugConfig.Name, plugConfig.IPAddress, err)
+					continue
+				}
+
+				childEnergyUsage, err := ControlChild_GetEnergyUsage(session, childDevice.ID)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error getting energy usage for child device '%s' of plug '%s' (%s): %s\n", childDevice.ID, plugConfig.Name, plugConfig.IPAddress, err)
+					continue
+				}
+
+				// Fixes for missing fields that should use parent device's values
+				childDeviceInfo.FirmwareDescription = deviceInfo.FirmwareDescription
+				childDeviceInfo.HardwareDescription = deviceInfo.HardwareDescription
+				childDeviceInfo.IPAddress = deviceInfo.IPAddress
+				childDeviceInfo.MACAddress = childDevice.MACAddress
+				childDeviceInfo.WirelessSSID = deviceInfo.WirelessSSID
+				childDeviceInfo.WirelessSignalLevel = deviceInfo.WirelessSignalLevel
+				childDeviceInfo.Language = deviceInfo.Language
+
+				metrics := NewPlugMetrics(plugConfig, session, childDeviceInfo, childEnergyUsage)
+				metrics.register(metricsServer.registry)
+
+				metricsList = append(metricsList, metrics)
+
+				// Initial metrics population before starting the server
+				metrics.update(childDeviceInfo, childEnergyUsage)
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "Unsupported device model '%s' for plug '%s' (%s)\n", deviceInfo.Model, plugConfig.Name, plugConfig.IPAddress)
+		}
+
+	}
+
+	// Update metrics in the background
+	for _, metrics := range metricsList {
+		go pollPlugMetrics(metrics, config)
+		log.Printf("Will update metrics for '%s' (%s) every %s", metrics.plug.Name, metrics.plug.IPAddress, config.Metrics.Interval)
+	}
+
+	if err := metricsServer.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error while starting metrics server: %s\n", err)
+		os.Exit(1)
+	}
 }
