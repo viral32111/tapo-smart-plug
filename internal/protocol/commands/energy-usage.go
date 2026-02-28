@@ -9,8 +9,6 @@ import (
 )
 
 type EnergyUsage struct {
-	// TODO: For some reason P304M child devices do not return a 'current_power' property?
-
 	CurrentEnergy int `json:"current_power"` // milliwatts
 
 	TodayEnergy  int `json:"today_energy"`  // watt-hours

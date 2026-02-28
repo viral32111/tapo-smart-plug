@@ -32,6 +32,13 @@ func Update(metrics *Metrics) error {
 			return fmt.Errorf("Failed to fetch energy usage from child '%s' of '%s' (%s): %w", metrics.ChildDeviceID, metrics.Name, metrics.IPAddress, err)
 		}
 
+		// Fix for P304M child devices not returning the 'current_power' property in their energy usage response
+		currentPower, err := commands.GetChildCurrentPower(metrics.KLAPSession, metrics.ChildDeviceID)
+		if err != nil {
+			return fmt.Errorf("Failed to fetch energy usage from child '%s' of '%s' (%s): %w", metrics.ChildDeviceID, metrics.Name, metrics.IPAddress, err)
+		}
+		energyUsage.CurrentEnergy = currentPower.CurrentEnergy * 1000 // Convert watts to milliwatts
+
 		metrics.Update(deviceInfo, energyUsage)
 		slog.Info("Updated child metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "id", deviceInfo.ID, "type", deviceInfo.Type, "model", deviceInfo.Model, "slot", deviceInfo.Slot)
 	} else {

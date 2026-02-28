@@ -40,6 +40,8 @@ func ControlChild(klapSession *klap.Session, childDeviceId string, method string
 		return nil, fmt.Errorf("Request for '%s' (control_child) failed: %w", method, err)
 	}
 
+	// fmt.Printf("\ncontrol_child -> %s\n%s\n\n", method, string(response))
+
 	// Step 1
 	var data Response
 	if err := json.Unmarshal(response, &data); err != nil {
