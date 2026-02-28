@@ -11,6 +11,11 @@ This is a Prometheus metrics exporter for [TP-Link's Tapo smart plugs](https://w
 
 I use this for my [Tapo P110](https://www.tapo.com/uk/product/smart-plug/tapo-p110/)'s, [Tapo P110M](https://www.tp-link.com/uk/home-networking/smart-plug/tapo-p110m/)'s & [Tapo P304M](https://www.tp-link.com/uk/home-networking/smart-plug/tapo-p304m/)'s.
 
+## Commands
+
+Start (local development): `go run ./cmd/tapo/main.go --log-level debug --config local.toml`
+Build (production): `GOOS=linux GOARCH=amd64 go build -o tapo-v0.1.0-linux-amd64 ./cmd/tapo/main.go`
+
 ## ⚙️ Configuration
 
 Create a TOML configuration file similar to the example below.

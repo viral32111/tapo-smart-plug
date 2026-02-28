@@ -1,4 +1,4 @@
-module tapo-smart-plug
+module github.com/viral32111/tapo-smart-plug
 
 go 1.25.0
 
