@@ -8,14 +8,13 @@ import (
 
 	"github.com/viral32111/tapo-smart-plug/internal/config"
 	"github.com/viral32111/tapo-smart-plug/internal/flags"
-	"github.com/viral32111/tapo-smart-plug/internal/klap"
 	"github.com/viral32111/tapo-smart-plug/internal/log"
 	"github.com/viral32111/tapo-smart-plug/internal/metrics"
-	"github.com/viral32111/tapo-smart-plug/internal/protocol/commands"
+	"github.com/viral32111/tapo-smart-plug/internal/plug"
 )
 
 const (
-	VERSION = "0.1.1"
+	VERSION = "0.1.2"
 )
 
 func main() {
@@ -50,66 +49,31 @@ func main() {
 
 	var metricsList []*metrics.Metrics
 	for _, plugConfig := range config.Plugs {
-		/* if !plugConfig.IsEnabled() {
-			continue
-		} */
-
 		emailAddress := plugConfig.DetermineEmail(config.Account)
 		password := plugConfig.DeterminePassword(config.Account)
 
-		klapSession, err := klap.NewSession(plugConfig.IPAddress, emailAddress, password)
+		devices, klapSession, err := plug.Setup(plugConfig, emailAddress, password)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error communicating with plug '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
+			fmt.Fprintf(os.Stderr, "Error initializing plug '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
 			continue
 		}
 
-		deviceInfo, err := commands.GetDeviceInfo(klapSession)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error fetching device info from '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
-			continue
-		}
-
-		// Only add child plugs for extension cords
-		if deviceInfo.Model == "P304M" {
-			childList, err := commands.GetChildDeviceList(klapSession)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error fetching child device list from '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
-				continue
-			}
-
-			for _, child := range childList.Devices {
-				childDeviceInfo, err := commands.GetChildDeviceInfo(klapSession, child.ID)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error fetching device info for child '%s' of '%s' (%s): %s\n", child.ID, plugConfig.Name, plugConfig.IPAddress, err)
-					continue
-				}
-
-				// Fixes for missing fields that should use parent device's values
-				childDeviceInfo.FirmwareDescription = deviceInfo.FirmwareDescription
-				childDeviceInfo.HardwareDescription = deviceInfo.HardwareDescription
-				childDeviceInfo.IPAddress = deviceInfo.IPAddress
-				childDeviceInfo.MACAddress = child.MACAddress
-				childDeviceInfo.WirelessSSID = deviceInfo.WirelessSSID
-				childDeviceInfo.WirelessSignalLevel = deviceInfo.WirelessSignalLevel
-				childDeviceInfo.Language = deviceInfo.Language
-
-				metrics := metrics.NewMetrics(plugConfig, klapSession, childDeviceInfo, emailAddress, password)
-				metrics.Register(metricsServer.Registry)
-
-				metricsList = append(metricsList, metrics)
-				logger.Info("Registered child metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "id", childDeviceInfo.ID, "type", childDeviceInfo.Type, "model", childDeviceInfo.Model, "slot", childDeviceInfo.Slot)
-			}
-		} else {
-			metrics := metrics.NewMetrics(plugConfig, klapSession, deviceInfo, emailAddress, password)
+		for _, device := range devices {
+			metrics := metrics.NewMetrics(plugConfig, klapSession, device, emailAddress, password, plugConfig.IsEnabled())
 			metrics.Register(metricsServer.Registry)
 
 			metricsList = append(metricsList, metrics)
-			logger.Info("Registered metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "id", deviceInfo.ID, "type", deviceInfo.Type, "model", deviceInfo.Model)
+			logger.Info("Registered metrics for plug", "name", metrics.Name, "ip_address", metrics.IPAddress, "id", device.ID, "type", device.Type, "model", device.Model, "slot", device.Slot)
 		}
 	}
 
 	// Update metrics in the background
 	for _, _metrics := range metricsList {
+		if !_metrics.EnablePolling {
+			logger.Info("Skipping disabled plug", "name", _metrics.Name, "ip_address", _metrics.IPAddress)
+			continue
+		}
+
 		go metrics.Poll(_metrics, config.Metrics.Interval)
 		logger.Debug("Started background metrics polling", "name", _metrics.Name, "ip_address", _metrics.IPAddress, "interval", config.Metrics.Interval.String())
 	}

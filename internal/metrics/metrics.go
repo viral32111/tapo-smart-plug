@@ -18,8 +18,9 @@ type Metrics struct {
 	Name      string
 	IPAddress string
 
-	EmailAddress string
-	Password     string
+	EnablePolling bool
+	EmailAddress  string
+	Password      string
 
 	ChildDeviceID string
 
@@ -28,7 +29,7 @@ type Metrics struct {
 	Gauges Gauges
 }
 
-func NewMetrics(plugConfig config.PlugConfig, klapSession *klap.Session, deviceInfo *commands.DeviceInfo, emailAddress string, password string) *Metrics {
+func NewMetrics(plugConfig config.PlugConfig, klapSession *klap.Session, deviceInfo *commands.DeviceInfo, emailAddress string, password string, enablePolling bool) *Metrics {
 	labels := prometheus.Labels{
 		"id": deviceInfo.ID,
 
@@ -66,8 +67,9 @@ func NewMetrics(plugConfig config.PlugConfig, klapSession *klap.Session, deviceI
 		Name:      plugConfig.Name,
 		IPAddress: plugConfig.IPAddress,
 
-		EmailAddress: emailAddress,
-		Password:     password,
+		EnablePolling: enablePolling,
+		EmailAddress:  emailAddress,
+		Password:      password,
 
 		// Only for P304M child devices
 		ChildDeviceID: func() string {

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/viral32111/tapo-smart-plug/internal/config"
+	"github.com/viral32111/tapo-smart-plug/internal/plug"
 	"github.com/viral32111/tapo-smart-plug/internal/protocol/commands"
 )
 
@@ -15,6 +17,17 @@ func Poll(metrics *Metrics, interval time.Duration) {
 	for range ticker.C {
 		if err := Update(metrics); err != nil {
 			slog.Warn("Error while updating metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "error", err)
+
+			// Attempt to renegotiate for the next poll
+			_, klapSession, err := plug.Setup(config.PlugConfig{
+				Name:      metrics.Name,
+				IPAddress: metrics.IPAddress,
+			}, metrics.EmailAddress, metrics.Password)
+			if err != nil {
+				slog.Warn("Failed to recreate KLAP session after error while updating metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "error", err)
+				continue
+			}
+			metrics.KLAPSession = klapSession
 		}
 	}
 }

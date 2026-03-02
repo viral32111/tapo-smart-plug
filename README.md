@@ -1,4 +1,4 @@
-# Tapo Smart Plug
+# Tapo Exporter
 
 [![CI](https://github.com/viral32111/tapo-smart-plug/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/viral32111/tapo-smart-plug/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/viral32111/tapo-smart-plug/actions/workflows/codeql.yml/badge.svg)](https://github.com/viral32111/tapo-smart-plug/actions/workflows/codeql.yml)
@@ -17,8 +17,8 @@ Start during local development: `go run ./cmd/tapo/main.go --log-level debug --c
 
 Build for production use:
 
-* Linux 64-bit (glibc): `GOOS=linux GOARCH=amd64 go build -o tapo-v0.1.0-linux-amd64-glibc ./cmd/tapo/main.go`
-* Linux 64-bit (musl): `CC=x86_64-linux-musl-gcc CXX=x86_64-linux-musl-g++ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o tapo-v0.1.0-linux-amd64-musl ./cmd/tapo/main.go`
+* Linux 64-bit (glibc): `GOOS=linux GOARCH=amd64 go build -o tapo-v0.1.2-linux-amd64-glibc ./cmd/tapo/main.go`
+* Linux 64-bit (musl): `CC=x86_64-linux-musl-gcc CXX=x86_64-linux-musl-g++ CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o tapo-v0.1.2-linux-amd64-musl ./cmd/tapo/main.go`
 
 ## ⚙️ Configuration
 
