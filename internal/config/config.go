@@ -8,6 +8,8 @@ const (
 	DEFAULT_METRICS_LISTEN   = "127.0.0.1:5000"
 	DEFAULT_METRICS_PATH     = "/metrics"
 	DEFAULT_METRICS_INTERVAL = 10 * time.Second
+
+	DEFAULT_PLUG_PROTOCOL = "klap"
 )
 
 /************************************************************/
@@ -37,30 +39,6 @@ type PlugConfig struct {
 
 	Email    *string `toml:"email"`
 	Password *string `toml:"password"`
-}
 
-/************************************************************/
-
-func (plug *PlugConfig) IsEnabled() bool {
-	if plug.Enabled == nil {
-		return true
-	}
-
-	return *plug.Enabled
-}
-
-func (plug *PlugConfig) DetermineEmail(global AccountConfig) string {
-	if plug.Email != nil {
-		return *plug.Email
-	}
-
-	return global.Email
-}
-
-func (plug *PlugConfig) DeterminePassword(account AccountConfig) string {
-	if plug.Password != nil {
-		return *plug.Password
-	}
-
-	return account.Password
+	Protocol *string `toml:"protocol"`
 }

@@ -1,12 +1,13 @@
 package klap
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+
+	"github.com/viral32111/tapo-smart-plug/internal/helpers"
 )
 
 // Returns the per-request IV by XOR-ing the last 4 bytes of the base IV with the current sequence number
@@ -14,28 +15,6 @@ func computeIV(baseIV []byte, sequenceNumber int32) []byte {
 	sequenceBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(sequenceBytes, uint32(sequenceNumber)) // Cast for the byte packing
 	return append(baseIV, sequenceBytes...)                           // 12 + 4 = 16 bytes, plain concatenation
-}
-
-// Pad with PKCS7 to AES block size (16 bytes)
-func pad(data []byte) []byte {
-	padding := aes.BlockSize - len(data)%aes.BlockSize
-	pad := bytes.Repeat([]byte{byte(padding)}, padding)
-	return append(data, pad...)
-}
-
-// Remove PKCS7 padding
-func unpad(data []byte) ([]byte, error) {
-	length := len(data)
-	if length == 0 || length%aes.BlockSize != 0 {
-		return nil, fmt.Errorf("Invalid padded length: %d", length)
-	}
-
-	padding := int(data[length-1])
-	if padding == 0 || padding > aes.BlockSize {
-		return nil, fmt.Errorf("Invalid padding byte: %d", padding)
-	}
-
-	return data[:length-padding], nil
 }
 
 // Encrypts the plain-text & prepends the header
@@ -46,7 +25,7 @@ func encrypt(key, baseIV, signatureKey []byte, sequenceNumber int32, plainText [
 	}
 
 	initVector := computeIV(baseIV, sequenceNumber)
-	padded := pad(plainText)
+	padded := helpers.PKCS7Pad(plainText, aes.BlockSize)
 	cipherText := make([]byte, len(padded))
 	cipher.NewCBCEncrypter(block, initVector).CryptBlocks(cipherText, padded)
 
@@ -79,5 +58,5 @@ func decrypt(key, baseIV []byte, sequenceNumber int32, payload []byte) ([]byte, 
 	plainText := make([]byte, len(cipherText))
 	cipher.NewCBCDecrypter(block, initVector).CryptBlocks(plainText, cipherText)
 
-	return unpad(plainText)
+	return helpers.PKCS7Unpad(plainText)
 }

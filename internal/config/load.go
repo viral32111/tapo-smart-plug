@@ -86,6 +86,29 @@ func Load(filePath string) (*Config, error) {
 			return nil, fmt.Errorf("Error parsing configuration file '%q': %w", filePath, err)
 		}
 
+		// Apply defaults to each plug
+		for index, plugConfig := range config.Plugs {
+			if plugConfig.Enabled == nil {
+				config.Plugs[index].Enabled = new(bool)
+				*config.Plugs[index].Enabled = true
+			}
+
+			if plugConfig.Email == nil {
+				config.Plugs[index].Email = new(string)
+				*config.Plugs[index].Email = config.Account.Email
+			}
+
+			if plugConfig.Password == nil {
+				config.Plugs[index].Password = new(string)
+				*config.Plugs[index].Password = config.Account.Password
+			}
+
+			if plugConfig.Protocol == nil {
+				config.Plugs[index].Protocol = new(string)
+				*config.Plugs[index].Protocol = DEFAULT_PLUG_PROTOCOL
+			}
+		}
+
 		slog.Info("Loaded configuration file", "config_file_path", filePath)
 	} else {
 		slog.Warn("Skipped loading non-existent configuration file", "config_file_path", filePath)

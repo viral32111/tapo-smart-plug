@@ -49,17 +49,14 @@ func main() {
 
 	var metricsList []*metrics.Metrics
 	for _, plugConfig := range config.Plugs {
-		emailAddress := plugConfig.DetermineEmail(config.Account)
-		password := plugConfig.DeterminePassword(config.Account)
-
-		devices, klapSession, err := plug.Setup(plugConfig, emailAddress, password)
+		devices, session, err := plug.Setup(plugConfig, *plugConfig.Email, *plugConfig.Password)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing plug '%s' (%s): %s\n", plugConfig.Name, plugConfig.IPAddress, err)
 			continue
 		}
 
 		for _, device := range devices {
-			metrics := metrics.NewMetrics(plugConfig, klapSession, device, emailAddress, password, plugConfig.IsEnabled())
+			metrics := metrics.NewMetrics(plugConfig, session, device, *plugConfig.Email, *plugConfig.Password, *plugConfig.Enabled)
 			metrics.Register(metricsServer.Registry)
 
 			metricsList = append(metricsList, metrics)

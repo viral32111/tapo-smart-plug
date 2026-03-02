@@ -78,6 +78,7 @@
 		"godotenv",
 		"KLAP",
 		"milis",
+		"passthrough",
 		"promhttp",
 		"SESSIONID",
 		"tapo",
