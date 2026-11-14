@@ -1,0 +1,4 @@
+# Ignore everything except builds
+/*
+!*-linux-*
+!*.exe

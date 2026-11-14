@@ -2,6 +2,7 @@ package aes_passthrough
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,9 +23,12 @@ type Session struct {
 }
 
 func New(ipAddress string, emailAddress string, password string) (*Session, error) {
-	baseUrl := fmt.Sprintf("http://%s/app", ipAddress)
+	baseUrl := fmt.Sprintf("https://%s:443/app", ipAddress)
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
 	}
 
 	session, err := Handshake(httpClient, baseUrl)
@@ -33,8 +37,8 @@ func New(ipAddress string, emailAddress string, password string) (*Session, erro
 	}
 
 	result, err := session.Request("login_device", map[string]any{
-		"username": hashCredential(emailAddress),
-		"password": hashCredential(password),
+		"username": HashCredential(emailAddress),
+		"password": HashCredential(password),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Error during login: %w", err)
@@ -66,7 +70,7 @@ func (session *Session) Request(method string, params any) (json.RawMessage, err
 		return nil, fmt.Errorf("Error encoding request for method '%s' as JSON: %w", method, err)
 	}
 
-	encrypted, err := encrypt(payload, session.Key, session.IV)
+	encrypted, err := Encrypt(payload, session.Key, session.IV)
 	if err != nil {
 		return nil, fmt.Errorf("Error encrypting request for method '%s' payload: %w", method, err)
 	}
@@ -120,7 +124,7 @@ func (session *Session) Request(method string, params any) (json.RawMessage, err
 		return nil, fmt.Errorf("Device returned error code %d for method '%s'", data.ErrorCode, method)
 	}
 
-	decrypted, err := decrypt(data.Result.Response, session.Key, session.IV)
+	decrypted, err := Decrypt(data.Result.Response, session.Key, session.IV)
 	if err != nil {
 		return nil, fmt.Errorf("Error decrypting response for method '%s': %w", method, err)
 	}

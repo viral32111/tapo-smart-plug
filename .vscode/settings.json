@@ -1,6 +1,6 @@
 {
 	// Title
-	"window.title": "Tapo Exporter",
+	"window.title": "Tapo Smart Plugs",
 
 	// Format on file save
 	"[go]": {
@@ -14,8 +14,6 @@
 			"source.removeUnusedImports": "explicit"
 		}
 	},
-
-
 
 	// Indent with tabs by default
 	"editor.detectIndentation": true,
@@ -75,13 +73,42 @@
 	"cSpell.language": "en-GB",
 	"cSpell.files": ["**/*.go", "**/*.md"],
 	"cSpell.words": [
-		"godotenv",
-		"KLAP",
-		"milis",
-		"passthrough",
-		"promhttp",
-		"SESSIONID",
-		"tapo",
-		"unpad"
-	]
+		"GOARCH",
+		"GOOS",
+		"Tapo"
+	],
+
+	// Custom colours
+	"workbench.colorCustomizations": {
+		"titleBar.activeBackground": "#ffffff",
+		"titleBar.activeForeground": "#000000",
+		"titleBar.inactiveBackground": "#efefef",
+		"titleBar.inactiveForeground": "#000000",
+
+		"statusBar.background": "#ffffff",
+		"statusBar.foreground": "#000000",
+		"statusBar.inactiveBackground": "#efefef",
+		"statusBarItem.hoverBackground": "#efefef",
+		"statusBarItem.hoverForeground": "#000000",
+		"statusBarItem.remoteBackground": "#efefef",
+		"statusBarItem.remoteForeground": "#000000",
+
+		"activityBar.background": "#ffffff",
+		"activityBar.foreground": "#000000",
+		"activityBar.inactiveForeground": "#000000",
+
+		"modernActivityBar.border": "#000000",
+
+		"modernActivityBarItem.activeBackground": "#efefef",
+		"modernActivityBarItem.activeForeground": "#000000",
+
+		"modernActivityBarItem.hoverBackground": "#efefef",
+		"modernActivityBarItem.hoverForeground": "#000000",
+
+		"activityBarBadge.background": "#000000",
+		"activityBarBadge.foreground": "#ffffff",
+
+		"commandCenter.foreground": "#000000",
+		"commandCenter.border": "#000000"
+	}
 }
