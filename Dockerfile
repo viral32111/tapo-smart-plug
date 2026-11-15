@@ -10,7 +10,7 @@ FROM scratch
 ARG TARGETARCH
 
 # Download the Mozilla CA bundle for TLS verification
-ADD --chown=0:0 --chmod=644 https://curl.se/ca/cacert.pem /etc/ssl/certs/ca-certificates.crt
+ADD --chown=0:0 --chmod=755 https://curl.se/ca/cacert.pem /etc/ssl/certs/ca-certificates.crt
 
 # Copy built binary from context
 COPY --chown=0:0 --chmod=755 *-linux-${TARGETARCH} /usr/local/bin/tapo-smart-plugs
