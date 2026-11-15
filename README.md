@@ -1,4 +1,4 @@
-# Tapo Smart Plugs
+# 🔌 Tapo Smart Plugs
 
 [![CI](https://github.com/viral32111/tapo-smart-plug/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/viral32111/tapo-smart-plug/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/viral32111/tapo-smart-plug/actions/workflows/codeql.yml/badge.svg)](https://github.com/viral32111/tapo-smart-plug/actions/workflows/codeql.yml)
@@ -26,6 +26,15 @@ There is a Docker image for Linux at [`ghcr.io/viral32111/tapo-smart-plugs`](htt
 | `:1.0.0` | No | No | No | Not recommended unless dependent on a bug. |
 | `:main` | Yes | Yes | Yes | Not recommended unless actively testing. |
 | `:latest` | Yes | Yes | Yes | Not recommended unless actively testing. |
+
+```bash
+docker container run \
+	--name tapo-smart-plugs \
+	--mount type=bind,source="$PWD/tapo.toml",target=/etc/tapo.toml,readonly \
+	--publish 5000:5000 \
+	--rm \
+	ghcr.io/viral32111/tapo-smart-plugs:1.0
+```
 
 ## 📊 Metrics
 
@@ -56,14 +65,18 @@ All metrics are prefixed with `tapo_`.
 
 ## ⚙️ Configuration
 
-Create a TOML configuration file similar to the example below.
+The smart plugs to monitor, and optionally the account credentials, are registered in a TOML configuration file. Create one similar to the example below, then provide its path with `--config` (defaults to `/etc/tapo.toml`).
 
 ```toml
+[log]
+level = "info" # $TAPO_LOG_LEVEL
+
 # The HTTP server for exposing metrics
 [metrics]
-listen = "127.0.0.1:5000" # $TAPO_METRICS_LISTEN
+listen = "127.0.0.1:5000" # $TAPO_HTTP_ADDRESS & $TAPO_HTTP_PORT
 path = "/metrics" # $TAPO_METRICS_PATH
-interval = "10s"
+go_builtin = false # $TAPO_METRICS_GO_BUILTIN
+interval = "10s" # $TAPO_METRICS_INTERVAL
 
 # The TP-Link Tapo account credentials (used only for local authentication)
 [account]
@@ -88,20 +101,31 @@ name = "Heater"
 ip_address = "192.168.10.20"
 ```
 
-Core configuration (not registering of devices) is possible via environment variables for easy deployment with Docker. These take priority over the TOML configuration file. See [`.env.example`](/.env.example).
+Core configuration is also possible via environment variables for easy deployment with Docker, see [`.env.example`](/.env.example). These take priority over the TOML configuration file, each one overriding only its own part (e.g. `TAPO_HTTP_PORT` replaces just the port of `metrics.listen`). A variable that is set to an invalid value is an error, the exporter will refuse to start.
 
 | Name | Type | Description | Default |
 | --- | --- | --- | --- |
-| `TAPO_METRICS_LISTEN` | String | IP address & TCP port to listen for HTTP requests on. | `127.0.0.1:5000` |
-| `TAPO_METRICS_PATH` | String | HTTP path to expose metrics at. | `/metrics` |
-| `TAPO_METRICS_INTERVAL` | String | Interval to refresh metrics. | `10s` |
-| `TAPO_ACCOUNT_EMAIL` | String | Email address of the Tapo account. | |
-| `TAPO_ACCOUNT_PASSWORD` | String | Password of the Tapo account. | |
+| `TAPO_LOG_LEVEL` | String | Minimum level of logs to print (`debug`, `info`, `warn`, `error`). Also configurable as `log.level` in the TOML file. | `info` |
+| `TAPO_HTTP_ADDRESS` | String | IP address to listen for HTTP requests on. Also configurable as the host of `metrics.listen` in the TOML file. | `127.0.0.1` |
+| `TAPO_HTTP_PORT` | Number | TCP port to listen for HTTP requests on (`1` to `65535`). Also configurable as the port of `metrics.listen` in the TOML file. | `5000` |
+| `TAPO_METRICS_PATH` | String | HTTP path to expose Prometheus metrics on. Must start with `/`, must not end with `/` (unless it is just `/`), and must not contain whitespace. Also configurable as `metrics.path` in the TOML file. | `/metrics` |
+| `TAPO_METRICS_GO_BUILTIN` | Boolean | Whether to include Go runtime & process metrics. Also configurable as `metrics.go_builtin` in the TOML file. | `false` |
+| `TAPO_METRICS_INTERVAL` | Duration | Interval to poll each smart plug at, must be greater than zero (e.g. `10s`). Also configurable as `metrics.interval` in the TOML file. | `10s` |
+| `TAPO_ACCOUNT_EMAIL` | String | Email address of the Tapo account. Required, unless `account.email` is set in the TOML file. | |
+| `TAPO_ACCOUNT_PASSWORD` | String | Password of the Tapo account. Required, unless `account.password` is set in the TOML file. | |
+
+### 🚩 Flags
+
+| Flag | Description |
+| --- | --- |
+| `-v`, `--version` | Print the version & exit. |
+| `-u`, `--usage` | Show the usage message & exit. `-h` and `--help` are aliases. |
+| `-c`, `--config <path>` | Path to the TOML configuration file. Defaults to `/etc/tapo.toml`. |
 
 ## 🧰 Development
 
 1. Copy the [`.env.example`](/.env.example) file to `.env` and populate accordingly.
-2. Run the application with `go run ./cmd/tapo/main.go`.
+2. Run the application with `go run ./cmd/tapo/main.go --config <path>`.
 
 ## 🛠️ Building
 

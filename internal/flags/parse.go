@@ -2,39 +2,41 @@ package flags
 
 import (
 	"flag"
+	"os"
 )
 
 const (
 	DEFAULT_CONFIG_PATH = "/etc/tapo.toml"
-	DEFAULT_LOG_LEVEL   = "info"
 )
 
 type Result struct {
-	PrintVersion          bool
-	ConfigurationFilePath string
-	LogLevel              string
+	Version bool
+	Usage   bool
+
+	ConfigPath string
 }
 
 func Parse() Result {
-	flag.Usage = printUsage
+	var result Result
 
-	var printVersion bool
-	flag.BoolVar(&printVersion, "version", false, "")
-	flag.BoolVar(&printVersion, "v", false, "")
-
-	var configurationFilePath string
-	flag.StringVar(&configurationFilePath, "config", DEFAULT_CONFIG_PATH, "")
-	flag.StringVar(&configurationFilePath, "c", DEFAULT_CONFIG_PATH, "")
-
-	var logLevel string
-	flag.StringVar(&logLevel, "log-level", DEFAULT_LOG_LEVEL, "")
-	flag.StringVar(&logLevel, "l", DEFAULT_LOG_LEVEL, "")
-
-	flag.Parse()
-
-	return Result{
-		PrintVersion:          printVersion,
-		ConfigurationFilePath: configurationFilePath,
-		LogLevel:              logLevel,
+	flagSet := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	flagSet.Usage = func() {
+		PrintUsage(os.Stderr)
 	}
+
+	flagSet.BoolVar(&result.Version, "version", false, "Print version & exit.")
+	flagSet.BoolVar(&result.Version, "v", false, "Print version & exit.")
+
+	flagSet.BoolVar(&result.Usage, "usage", false, "Show this usage message & exit.")
+	flagSet.BoolVar(&result.Usage, "u", false, "Show this usage message & exit.")
+
+	flagSet.BoolVar(&result.Usage, "help", false, "Show this usage message & exit.")
+	flagSet.BoolVar(&result.Usage, "h", false, "Show this usage message & exit.")
+
+	flagSet.StringVar(&result.ConfigPath, "config", DEFAULT_CONFIG_PATH, "Path to the TOML configuration file.")
+	flagSet.StringVar(&result.ConfigPath, "c", DEFAULT_CONFIG_PATH, "Path to the TOML configuration file.")
+
+	flagSet.Parse(os.Args[1:])
+
+	return result
 }

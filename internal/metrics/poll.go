@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -10,24 +11,31 @@ import (
 	"github.com/viral32111/tapo-smart-plug/internal/protocol/commands"
 )
 
-func Poll(metrics *Metrics, interval time.Duration) {
+func Poll(ctx context.Context, metrics *Metrics, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		if err := Update(metrics); err != nil {
-			slog.Warn("Error while updating metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "error", err)
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("Stopped polling plug", "name", metrics.Name, "ip_address", metrics.IPAddress)
+			return
 
-			// Attempt to renegotiate for the next poll
-			_, klapSession, err := plug.Setup(config.PlugConfig{
-				Name:      metrics.Name,
-				IPAddress: metrics.IPAddress,
-			}, metrics.EmailAddress, metrics.Password)
-			if err != nil {
-				slog.Warn("Failed to recreate KLAP session after error while updating metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "error", err)
-				continue
+		case <-ticker.C:
+			if err := Update(metrics); err != nil {
+				slog.Warn("Error while updating metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "error", err)
+
+				// Attempt to renegotiate for the next poll
+				_, klapSession, err := plug.Setup(config.PlugConfig{
+					Name:      metrics.Name,
+					IPAddress: metrics.IPAddress,
+				}, metrics.EmailAddress, metrics.Password)
+				if err != nil {
+					slog.Warn("Failed to recreate KLAP session after error while updating metrics", "name", metrics.Name, "ip_address", metrics.IPAddress, "error", err)
+					continue
+				}
+				metrics.KLAPSession = klapSession
 			}
-			metrics.KLAPSession = klapSession
 		}
 	}
 }

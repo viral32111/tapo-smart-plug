@@ -19,7 +19,7 @@ COPY --chown=0:0 --chmod=755 *-linux-${TARGETARCH} /usr/local/bin/tapo-smart-plu
 USER 65534:65534
 
 # Default configuration
-ENV TAPO_METRICS_LISTEN=0.0.0.0:5000
+ENV TAPO_HTTP_ADDRESS=0.0.0.0
 
 # Publish HTTP server port
 EXPOSE 5000/tcp
