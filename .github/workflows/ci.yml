@@ -31,19 +31,8 @@ jobs:
       matrix:
         os: [ 'linux', 'windows' ]
         arch: [ 'amd64', '386', 'arm64', 'arm' ]
-        libc: [ '', 'glibc', 'musl' ]
         exclude:
-          # glibc/musl is irrelevant for Windows builds
-          - os: windows
-            libc: glibc
-          - os: windows
-            libc: musl
-
-          # glibc/musl is required for Linux builds
-          - os: linux
-            libc: ''
-
-          # 32-bit ARM is no longer supported on Windows
+          # 32-bit ARM is not supported on Windows
           - os: windows
             arch: arm
     permissions:
@@ -57,25 +46,18 @@ jobs:
         with:
           go-version: '1.25'
 
-      - name: Install build tools
-        if: ${{ matrix.libc == 'musl' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes musl-tools
-
       - name: Construct artifact & executable name
         id: names
         env:
           NAME: ${{ env.PROJECT_NAME }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
-          LIBC: ${{ matrix.libc }}
         uses: actions/github-script@v9
         with:
           script: |
-            const { NAME, OS, ARCH, LIBC } = process.env;
+            const { NAME, OS, ARCH } = process.env;
 
-            const artifactName = [ NAME, OS, ARCH, LIBC ]
+            const artifactName = [ NAME, OS, ARCH ]
               .filter( value => value != '' )
               .join( '-' );
 
@@ -88,7 +70,7 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
-          CC: ${{ matrix.libc == 'musl' && '/usr/bin/musl-gcc' || '' }}
+          CGO_ENABLED: 0
         run: |
           VERSION="${GITHUB_SHA::7}"
           if [ "${{ github.ref_type }}" = "tag" ]; then
@@ -107,16 +89,6 @@ jobs:
     name: Docker
     runs-on: ubuntu-latest
     needs: build
-    strategy:
-      matrix:
-        distro: [ 'ubuntu', 'alpine' ]
-        arch: [ 'amd64', 'arm64' ]
-        include:
-          - distro: ubuntu
-            libc: glibc
-
-          - distro: alpine
-            libc: musl
     permissions:
       contents: read
       packages: write
@@ -130,7 +102,7 @@ jobs:
       - name: Setup Docker
         uses: docker/setup-buildx-action@v4
         with:
-          platforms: linux/${{ matrix.arch }}
+          platforms: linux/amd64,linux/arm64
 
       - name: Login to GitHub Container Registry
         if: ${{ github.event_name != 'pull_request' && !startsWith( github.ref_name, 'dependabot/' ) }}
@@ -143,7 +115,8 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v8
         with:
-          name: ${{ env.PROJECT_NAME }}-linux-${{ matrix.arch }}-${{ matrix.libc }}
+          merge-multiple: true
+          pattern: ${{ env.PROJECT_NAME }}-linux-*
           path: artifact
 
       - name: Create metadata for Docker image
@@ -151,9 +124,6 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}
-          flavor: |
-            latest=${{ matrix.distro == 'alpine' }}
-            suffix=-${{ matrix.libc }}-${{ matrix.arch }},onlatest=true
           tags: |
             type=ref,event=pr
             type=ref,event=branch
@@ -161,7 +131,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}.{{minor}}.{{patch}}
           labels: |
-            org.opencontainers.image.title=${{ env.PROJECT_TITLE }} (${{matrix.distro}})
+            org.opencontainers.image.title=${{ env.PROJECT_TITLE }}
             org.opencontainers.image.vendor=${{ github.repository_owner }}
             com.docker.extension.publisher-url=https://viral32111.com
 
@@ -173,92 +143,22 @@ jobs:
           context: artifact
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
-          platforms: linux/${{ matrix.arch }}
-          target: ${{ matrix.libc }}
+          platforms: linux/amd64,linux/arm64
           provenance: false
           no-cache: true
           pull: true
 
-  maintenance:
-    name: Maintenance
-    runs-on: ubuntu-latest
-    needs: docker
-    if: ${{ github.event_name != 'pull_request' && !startsWith( github.ref_name, 'dependabot/' ) }}
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v7
-
-      - name: Setup Docker
-        uses: docker/setup-buildx-action@v4
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.DOCKER_REGISTRY_DOMAIN }}
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Docker image manifests
-        run: |
-          docker manifest create ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest \
-            --amend ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc-amd64 \
-            --amend ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc-arm64
-          docker manifest annotate --os linux --arch amd64 \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc-amd64
-          docker manifest annotate --os linux --arch arm64 \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc-arm64
-
-          docker manifest create ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc \
-            --amend ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc-amd64 \
-            --amend ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc-arm64
-          docker manifest annotate --os linux --arch amd64 \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc-amd64
-          docker manifest annotate --os linux --arch arm64 \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc-arm64
-
-          docker manifest create ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-glibc \
-            --amend ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-glibc-amd64 \
-            --amend ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-glibc-arm64
-          docker manifest annotate --os linux --arch amd64 \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-glibc \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-glibc-amd64
-          docker manifest annotate --os linux --arch arm64 \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-glibc \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-glibc-arm64
-
-          docker manifest create ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-musl \
-            --amend ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-musl-amd64 \
-            --amend ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-musl-arm64
-          docker manifest annotate --os linux --arch amd64 \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-musl \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-musl-amd64
-          docker manifest annotate --os linux --arch arm64 \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-musl \
-            ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-musl-arm64
-
-      - name: Push Docker image manifests
-        run: |
-          docker manifest push ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest
-          docker manifest push ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest-glibc
-          docker manifest push ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-glibc
-          docker manifest push ${{ env.DOCKER_REGISTRY_DOMAIN }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.ref_name }}-musl
-
       - name: Delete stale Docker images
         if: ${{ github.event_name != 'pull_request' && !startsWith( github.ref_name, 'dependabot/' ) }}
-        uses: actions/delete-package-versions@v5
+        uses: dataaxiom/ghcr-cleanup-action@v1
         with:
-          package-type: container
-          package-name: ${{ env.DOCKER_IMAGE_NAME }}
-          delete-only-untagged-versions: true
-          min-versions-to-keep: 3
-          ignore-versions: latest
+          packages: ${{ env.DOCKER_IMAGE_NAME }}
+          delete-untagged: true
+          delete-partial-images: true
+          delete-orphaned-images: true
+          delete-ghost-images: true
+          exclude-tags: latest
+          validate: true
 
   release:
     name: Release

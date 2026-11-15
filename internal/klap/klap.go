@@ -46,7 +46,8 @@ func klapHandshake1(client *http.Client, baseUrl string, localSeed, authHash []b
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("Unexpected HTTP status code %d: %s", response.StatusCode)
+		body, _ := io.ReadAll(response.Body)
+		return nil, nil, fmt.Errorf("Unexpected HTTP status code %d: %s", response.StatusCode, string(body))
 	}
 
 	// Extract TP_SESSIONID from the response cookies
